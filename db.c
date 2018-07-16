@@ -38,6 +38,7 @@ static char *qhelp_docstring = (
  "\tadd [key;fld1;fld2;...]    -- add entry to database\n"
  "\tget [key]                  -- show db entry named by key\n"
  "\tdel [key]                  -- remove entry specified by key from db\n"
+ "\tmod [key]                  -- modify record in db by key\n"
  "\thelp                       -- display this message\n"
 );
 
@@ -54,7 +55,8 @@ enum query_code{
 	Q_ADD,
 	Q_GET,
 	Q_DEL,
-	Q_HELP
+	Q_HELP,
+	Q_MOD
 };
 
 static char *query_name[] = {
@@ -62,7 +64,8 @@ static char *query_name[] = {
  [Q_ADD] = "add",
  [Q_GET] = "get",
  [Q_DEL] = "del",
- [Q_HELP] = "help"
+ [Q_HELP] = "help",
+ [Q_MOD] = "mod"
 };
 
 static struct dbitem make_item(const char *str)
@@ -247,7 +250,7 @@ int main(int argc, char *argv[]) {
 		int lerr = E_OK;
 		switch(qtype) {
 		case Q_HELP:
-			printf(qhelp_docstring);
+			printf(qhelp_docstring,"");
 			exit(EM_OK);
 			/* break;  -- not needed because of exit*/ 
 		case Q_LIST:;	/* ; empty statement */
@@ -295,10 +298,121 @@ int main(int argc, char *argv[]) {
 			printf("DB entry \"%s\" created\n", qval);
 			free(fn);
 			break;
-		default:	/* No match found */
-			err_exit(args.isquiet, EM_QUERY); /* rely on alloc cleanup @ exit */
-		}
-		free(qname);
-	}
-	return 0;
+        case Q_MOD:;
+            char* fnamemod = m_strjoin("/", args.dir, qval);
+            char data[4096];
+            char newinfo[15];
+            struct dbitem itmmod;
+            if ((lerr = item_read(fnamemod, &itmmod)) != E_OK) {
+                item_remove_bykey(qval, args.dir);
+                free(fnamemod);
+                err_exit(args.isquiet, lerr);
+            }
+            printf("DB entry \"%s\":\n"
+                   "\tlast_name: %s\n"
+                   "\tfirst_name: %s\n"
+                   "\temail: %s\n"
+                   "\tbirth_date: %02u.%02u.%u\n",
+                qval, itmmod.last_name, itmmod.first_name, itmmod.email,
+                itmmod.birth_date.day, itmmod.birth_date.month,
+                itmmod.birth_date.year);
+            free(fnamemod);
+
+            printf("What do you want modify?\n"
+                   "\t1.last name\n"
+                   "\t2.first name\n"
+                   "\t3.email\n"
+                   "\t4.birthday\n");
+            unsigned int command = 0;
+            if (scanf("%u", &command))
+                switch (command) {
+                case 1:;
+                    char ch;
+                    printf("You change key db(The old key will be removed)\n"
+                           "Press enter to continue\n");
+                    getchar();
+                    if (scanf("%c", &ch))
+                        if (ch == 0x0A) {
+                            printf("actual last name is %s\n", itmmod.last_name);
+                            printf("print new name ");
+                            if (scanf("%s", newinfo)) {
+                                if ((lerr = item_remove_bykey(itmmod.last_name, args.dir)) != E_OK)
+                                    err_exit(args.isquiet, lerr);
+                                printf("DB entry \"%s\" removed\n", itmmod.last_name);
+                                snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", newinfo, itmmod.first_name, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
+                                    itmmod.birth_date.year);
+                                struct dbitem item = make_item(data);
+                                char* fn = m_strjoin("/", args.dir, item.key);
+                                if ((lerr = item_write(fn, &item)) != E_OK) {
+                                    free(fn);
+                                    err_exit(args.isquiet, lerr);
+                                }
+                                printf("Updated db \"%s\n", data);
+                                free(fn);
+                            }
+                        }
+
+                    break;
+                case 2:
+                    printf("actual first name is %s\n", itmmod.first_name);
+                    printf("print new name ");
+                    if (scanf("%s", newinfo)) {
+                        snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, newinfo, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
+                            itmmod.birth_date.year);
+                        struct dbitem item = make_item(data);
+                        char* fn = m_strjoin("/", args.dir, item.key);
+                        if ((lerr = item_write(fn, &item)) != E_OK) {
+                            free(fn);
+                            err_exit(args.isquiet, lerr);
+                        }
+                        printf("Updated db \"%s\n", data);
+                        free(fn);
+                    }
+                    break;
+                case 3:
+                    printf("actual email is %s\n", itmmod.email);
+                    printf("print new email ");
+                    if (scanf("%s", newinfo)) {
+                        snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, newinfo, itmmod.birth_date.day, itmmod.birth_date.month,
+                            itmmod.birth_date.year);
+                        struct dbitem item = make_item(data);
+                        char* fn = m_strjoin("/", args.dir, item.key);
+                        if ((lerr = item_write(fn, &item)) != E_OK) {
+                            free(fn);
+                            err_exit(args.isquiet, lerr);
+                        }
+                        printf("Updated db \"%s\n", data);
+                        free(fn);
+                    }
+                    break;
+                case 4:
+                    printf("actual birthday is %d.%d.%d\n", itmmod.birth_date.day, itmmod.birth_date.month,
+                        itmmod.birth_date.year);
+                    printf("print new date ");
+                    if (scanf("%s", newinfo)) {
+                        unsigned int dd, mm, yyyy;
+                        if ((newinfo != NULL) && sscanf(newinfo, "%u.%u.%u", &dd, &mm, &yyyy) == 3) {
+                            snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, itmmod.email, dd, mm,
+                                yyyy);
+                            struct dbitem item = make_item(data);
+                            char* fn = m_strjoin("/", args.dir, item.key);
+                            if ((lerr = item_write(fn, &item)) != E_OK) {
+                                free(fn);
+                                err_exit(args.isquiet, lerr);
+                            }
+                            printf("Updated db \"%s\n", data);
+                            free(fn);
+                        }
+                    }
+                    break;
+                default:
+                    break;
+                }
+            break;
+        default: /* No match found */
+            err_exit(args.isquiet, EM_QUERY); /* rely on alloc cleanup @ exit */
+        }
+        free(qname);
+    }
+    return 0;
 }
