@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
 			char *fname = m_strjoin("/", args.dir, qval);
 			struct dbitem itm;
 			if ((lerr = item_read(fname, &itm)) != E_OK) {
-				item_remove_bykey(qval, args.dir);
+				item_remove_bykey(qval, args.dir);	
 				free(fname);
 				err_exit(args.isquiet, lerr);
 			}
@@ -331,8 +331,7 @@ int main(int argc, char *argv[]) {
                     char ch;
                     printf("You change key db(The old key will be removed)\n"
                            "Press enter to continue\n");
-                    getchar();
-                    if (scanf("%c", &ch))
+                    if (getchar() && scanf("%c", &ch))
                         if (ch == 0x0A) {
                             printf("actual last name is %s\n", itmmod.last_name);
                             printf("print new name ");
