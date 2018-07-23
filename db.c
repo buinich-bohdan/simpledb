@@ -17,6 +17,9 @@ enum main_err {
 	EM_QUERY
 };
 
+int lerr = E_OK;
+
+
 static char *errmsg[] = {
  [EM_OK] = "\n",
  [E_FNAME] = "LibErr: Wrong file name\n",
@@ -67,6 +70,7 @@ static char *query_name[] = {
  [Q_HELP] = "help",
  [Q_MOD] = "mod"
 };
+
 
 static struct dbitem make_item(const char *str)
 {
@@ -193,6 +197,84 @@ static struct argp parser_config = {
 	.doc=args_docstring 
 };
 
+void additem(char data[4096], struct args_container args)
+{
+    struct dbitem item = make_item(data);
+    char* fn = m_strjoin("/", args.dir, item.key);
+    if ((lerr = item_write(fn, &item)) != E_OK) {
+        free(fn);
+        err_exit(args.isquiet, lerr);
+    }
+    printf("Updated db \"%s\n", data);
+    free(fn);
+}
+
+void modmenu(struct dbitem itmmod, struct args_container args)
+{
+    char data[4096];
+    char newinfo[15];
+    printf("What do you want modify?\n"
+           "\t1.last name\n"
+           "\t2.first name\n"
+           "\t3.email\n"
+           "\t4.birthday\n");
+    unsigned int command = 0;
+    if (scanf("%u", &command))
+        switch (command) {
+        case 1:;
+            char ch;
+            printf("You change key db(The old key will be removed)\n"
+                   "Press enter to continue\n");
+            if (getchar() && scanf("%c", &ch))
+                if (ch == 0x0A) {
+                    printf("actual last name is %s\n", itmmod.last_name);
+                    printf("print new name ");
+                    if (scanf("%s", newinfo)) {
+                        if ((lerr = item_remove_bykey(itmmod.last_name, args.dir)) != E_OK)
+                            err_exit(args.isquiet, lerr);
+                        printf("DB entry \"%s\" removed\n", itmmod.last_name);
+                        snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", newinfo, itmmod.first_name, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
+                            itmmod.birth_date.year);
+                        additem(data, args);
+                    }
+                }
+            break;
+        case 2:
+            printf("actual first name is %s\n", itmmod.first_name);
+            printf("print new name ");
+            if (scanf("%s", newinfo)) {
+                snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, newinfo, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
+                    itmmod.birth_date.year);
+                additem(data, args);
+            }
+            break;
+        case 3:
+            printf("actual email is %s\n", itmmod.email);
+            printf("print new email ");
+            if (scanf("%s", newinfo)) {
+                snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, newinfo, itmmod.birth_date.day, itmmod.birth_date.month,
+                    itmmod.birth_date.year);
+                additem(data, args);
+            }
+            break;
+        case 4:
+            printf("actual birthday is %d.%d.%d\n", itmmod.birth_date.day, itmmod.birth_date.month,
+                itmmod.birth_date.year);
+            printf("print new date ");
+            if (scanf("%s", newinfo)) {
+                unsigned int dd, mm, yyyy;
+                if ((newinfo != NULL) && sscanf(newinfo, "%u.%u.%u", &dd, &mm, &yyyy) == 3) {
+                    snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, itmmod.email, dd, mm,
+                        yyyy);
+                    additem(data, args);
+                }
+            }
+            break;
+        default:
+            break;
+        }
+}
+
 int main(int argc, char *argv[]) {
 	/* Fill with default arguments */
 	struct args_container args = {
@@ -247,7 +329,6 @@ int main(int argc, char *argv[]) {
 		}	
 		/* Now qtype indicates our query type, which could be used in switch logic */
 
-		int lerr = E_OK;
 		switch(qtype) {
 		case Q_HELP:
 			printf(qhelp_docstring,"");
@@ -301,8 +382,6 @@ int main(int argc, char *argv[]) {
 			break;
         case Q_MOD:;
             char* fnamemod = m_strjoin("/", args.dir, qval);
-            char data[4096];
-            char newinfo[15];
             struct dbitem itmmod;
             if ((lerr = item_read(fnamemod, &itmmod)) != E_OK) {
                 item_remove_bykey(qval, args.dir);
@@ -319,95 +398,7 @@ int main(int argc, char *argv[]) {
                 itmmod.birth_date.year);
             free(fnamemod);
 
-            printf("What do you want modify?\n"
-                   "\t1.last name\n"
-                   "\t2.first name\n"
-                   "\t3.email\n"
-                   "\t4.birthday\n");
-            unsigned int command = 0;
-            if (scanf("%u", &command))
-                switch (command) {
-                case 1:;
-                    char ch;
-                    printf("You change key db(The old key will be removed)\n"
-                           "Press enter to continue\n");
-                    if (getchar() && scanf("%c", &ch))
-                        if (ch == 0x0A) {
-                            printf("actual last name is %s\n", itmmod.last_name);
-                            printf("print new name ");
-                            if (scanf("%s", newinfo)) {
-                                if ((lerr = item_remove_bykey(itmmod.last_name, args.dir)) != E_OK)
-                                    err_exit(args.isquiet, lerr);
-                                printf("DB entry \"%s\" removed\n", itmmod.last_name);
-                                snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", newinfo, itmmod.first_name, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
-                                    itmmod.birth_date.year);
-                                struct dbitem item = make_item(data);
-                                char* fn = m_strjoin("/", args.dir, item.key);
-                                if ((lerr = item_write(fn, &item)) != E_OK) {
-                                    free(fn);
-                                    err_exit(args.isquiet, lerr);
-                                }
-                                printf("Updated db \"%s\n", data);
-                                free(fn);
-                            }
-                        }
-
-                    break;
-                case 2:
-                    printf("actual first name is %s\n", itmmod.first_name);
-                    printf("print new name ");
-                    if (scanf("%s", newinfo)) {
-                        snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, newinfo, itmmod.email, itmmod.birth_date.day, itmmod.birth_date.month,
-                            itmmod.birth_date.year);
-                        struct dbitem item = make_item(data);
-                        char* fn = m_strjoin("/", args.dir, item.key);
-                        if ((lerr = item_write(fn, &item)) != E_OK) {
-                            free(fn);
-                            err_exit(args.isquiet, lerr);
-                        }
-                        printf("Updated db \"%s\n", data);
-                        free(fn);
-                    }
-                    break;
-                case 3:
-                    printf("actual email is %s\n", itmmod.email);
-                    printf("print new email ");
-                    if (scanf("%s", newinfo)) {
-                        snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, newinfo, itmmod.birth_date.day, itmmod.birth_date.month,
-                            itmmod.birth_date.year);
-                        struct dbitem item = make_item(data);
-                        char* fn = m_strjoin("/", args.dir, item.key);
-                        if ((lerr = item_write(fn, &item)) != E_OK) {
-                            free(fn);
-                            err_exit(args.isquiet, lerr);
-                        }
-                        printf("Updated db \"%s\n", data);
-                        free(fn);
-                    }
-                    break;
-                case 4:
-                    printf("actual birthday is %d.%d.%d\n", itmmod.birth_date.day, itmmod.birth_date.month,
-                        itmmod.birth_date.year);
-                    printf("print new date ");
-                    if (scanf("%s", newinfo)) {
-                        unsigned int dd, mm, yyyy;
-                        if ((newinfo != NULL) && sscanf(newinfo, "%u.%u.%u", &dd, &mm, &yyyy) == 3) {
-                            snprintf(data, sizeof data, "%s;%s;%s;%d.%d.%d", itmmod.last_name, itmmod.first_name, itmmod.email, dd, mm,
-                                yyyy);
-                            struct dbitem item = make_item(data);
-                            char* fn = m_strjoin("/", args.dir, item.key);
-                            if ((lerr = item_write(fn, &item)) != E_OK) {
-                                free(fn);
-                                err_exit(args.isquiet, lerr);
-                            }
-                            printf("Updated db \"%s\n", data);
-                            free(fn);
-                        }
-                    }
-                    break;
-                default:
-                    break;
-                }
+            modmenu(itmmod, args);
             break;
         default: /* No match found */
             err_exit(args.isquiet, EM_QUERY); /* rely on alloc cleanup @ exit */
