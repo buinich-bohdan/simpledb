@@ -19,7 +19,6 @@ enum main_err {
 
 int lerr = E_OK;
 
-
 static char *errmsg[] = {
  [EM_OK] = "\n",
  [E_FNAME] = "LibErr: Wrong file name\n",
